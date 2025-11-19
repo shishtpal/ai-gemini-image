@@ -1,0 +1,72 @@
+package cmd
+
+import (
+	"fmt"
+	"nanobanana/pkg/filehandler"
+	"nanobanana/pkg/gemini"
+	"path/filepath"
+
+	"github.com/spf13/cobra"
+)
+
+var (
+	diagramType   string
+	diagramOutput string
+)
+
+var diagramCmd = &cobra.Command{
+	Use:   "diagram [description]",
+	Short: "Generate technical diagrams and flowcharts",
+	Long: `Create technical diagrams, flowcharts, architecture diagrams, and visualizations.
+
+Examples:
+  nanobanana diagram "CI/CD pipeline with testing stages"
+  nanobanana diagram "microservices architecture" --type="architecture"
+  nanobanana diagram "user authentication flow" --type="flowchart"`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: runDiagram,
+}
+
+func init() {
+	rootCmd.AddCommand(diagramCmd)
+
+	diagramCmd.Flags().StringVar(&diagramType, "type", "diagram", "Diagram type: flowchart, architecture, sequence, entity-relationship")
+	diagramCmd.Flags().StringVarP(&diagramOutput, "output", "o", ".", "Output directory")
+}
+
+func runDiagram(cmd *cobra.Command, args []string) error {
+	description := args[0]
+
+	// Build prompt
+	prompt := fmt.Sprintf("Create a clear, professional %s diagram: %s. ", diagramType, description)
+	prompt += "The diagram should be well-organized, easy to read, with clear labels, appropriate shapes/symbols, "
+	prompt += "connecting lines/arrows, and good visual hierarchy. Use a clean, technical style."
+
+	// Create Gemini client
+	client, err := gemini.NewClient()
+	if err != nil {
+		return fmt.Errorf("failed to create Gemini client: %w", err)
+	}
+
+	fmt.Printf("Generating %s: %s\n", diagramType, description)
+
+	// Generate diagram
+	imageData, err := client.GenerateContent(prompt)
+	if err != nil {
+		return fmt.Errorf("failed to generate diagram: %w", err)
+	}
+
+	// Generate filename
+	filename := filehandler.GenerateFilename(description, diagramType, 0)
+	outputPath := filepath.Join(diagramOutput, filename)
+	outputPath = filehandler.EnsureUniqueFilename(outputPath)
+
+	// Save diagram
+	if err := filehandler.SaveImage(imageData, outputPath); err != nil {
+		return fmt.Errorf("failed to save diagram: %w", err)
+	}
+
+	fmt.Printf("✓ Diagram saved to: %s\n", outputPath)
+
+	return nil
+}

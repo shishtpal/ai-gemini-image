@@ -1,0 +1,105 @@
+package cmd
+
+import (
+	"fmt"
+	"nanobanana/pkg/filehandler"
+	"nanobanana/pkg/gemini"
+	"path/filepath"
+
+	"github.com/spf13/cobra"
+)
+
+var (
+	storyFrames int
+	storyOutput string
+	storyStyle  string
+)
+
+var storyCmd = &cobra.Command{
+	Use:   "story [narrative]",
+	Short: "Generate sequential images for visual narratives",
+	Long: `Create a sequence of images that tell a story or show progression.
+
+Examples:
+  nanobanana story "a seed growing into a tree" --frames=4
+  nanobanana story "day to night transition in a city" --frames=6 --style="cinematic"
+  nanobanana story "character transformation" --frames=3`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: runStory,
+}
+
+func init() {
+	rootCmd.AddCommand(storyCmd)
+
+	storyCmd.Flags().IntVarP(&storyFrames, "frames", "f", 3, "Number of frames/scenes to generate")
+	storyCmd.Flags().StringVarP(&storyStyle, "style", "s", "", "Visual style for the story")
+	storyCmd.Flags().StringVarP(&storyOutput, "output", "o", ".", "Output directory")
+}
+
+func runStory(cmd *cobra.Command, args []string) error {
+	narrative := args[0]
+
+	if storyFrames < 2 {
+		return fmt.Errorf("frames must be at least 2")
+	}
+	if storyFrames > 10 {
+		return fmt.Errorf("frames cannot exceed 10")
+	}
+
+	// Create Gemini client
+	client, err := gemini.NewClient()
+	if err != nil {
+		return fmt.Errorf("failed to create Gemini client: %w", err)
+	}
+
+	fmt.Printf("Generating story: %s\n", narrative)
+	fmt.Printf("Frames: %d\n", storyFrames)
+	if storyStyle != "" {
+		fmt.Printf("Style: %s\n", storyStyle)
+	}
+	fmt.Println()
+
+	successCount := 0
+	for i := 1; i <= storyFrames; i++ {
+		// Create frame-specific prompt
+		prompt := fmt.Sprintf("Frame %d of %d in a visual narrative: %s", i, storyFrames, narrative)
+		if i == 1 {
+			prompt += " (beginning/opening scene)"
+		} else if i == storyFrames {
+			prompt += " (ending/final scene)"
+		} else {
+			prompt += fmt.Sprintf(" (progression, scene %d)", i)
+		}
+
+		if storyStyle != "" {
+			prompt += fmt.Sprintf(", style: %s", storyStyle)
+		}
+
+		fmt.Printf("[%d/%d] Generating frame...\n", i, storyFrames)
+
+		// Generate image
+		imageData, err := client.GenerateContent(prompt)
+		if err != nil {
+			fmt.Printf("Error generating frame %d: %v\n", i, err)
+			continue
+		}
+
+		// Generate filename
+		filename := filehandler.GenerateFilename(narrative, fmt.Sprintf("story_frame_%02d", i), 0)
+		outputPath := filepath.Join(storyOutput, filename)
+		outputPath = filehandler.EnsureUniqueFilename(outputPath)
+
+		// Save image
+		if err := filehandler.SaveImage(imageData, outputPath); err != nil {
+			fmt.Printf("Error saving frame %d: %v\n", i, err)
+			continue
+		}
+
+		fmt.Printf("✓ Saved frame %d to: %s\n", i, outputPath)
+		successCount++
+	}
+
+	fmt.Printf("\nSuccessfully generated %d/%d story frames\n", successCount, storyFrames)
+
+	return nil
+}
