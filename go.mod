@@ -1,4 +1,4 @@
-module nanobanana
+module imagemage
 
 go 1.22.2
 

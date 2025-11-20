@@ -1,0 +1,112 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    # Skip combinations that don't make sense
+    ignore:
+      - goos: windows
+        goarch: arm64
+    binary: imagemage
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - 'typo'
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+# Homebrew tap
+brews:
+  - repository:
+      owner: quinnypig
+      name: homebrew-imagemage
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/quinnypig/imagemage
+    description: "A focused CLI tool for generating and editing images with Google's Gemini API without the bloat"
+    license: MIT
+    folder: Formula
+    test: |
+      system "#{bin}/imagemage --version"
+    install: |
+      bin.install "imagemage"
+
+# GitHub Release
+release:
+  github:
+    owner: quinnypig
+    name: imagemage
+  draft: false
+  prerelease: auto
+  mode: replace
+  name_template: "{{.ProjectName}} v{{.Version}}"
+  header: |
+    ## What's New in {{ .Version }}
+
+    Another step toward making image generation with Gemini less painful.
+  footer: |
+    ## Installation
+
+    ### Homebrew
+    ```bash
+    brew tap quinnypig/imagemage
+    brew install imagemage
+    ```
+
+    ### Manual Download
+    Download the appropriate binary for your OS from the assets below.
+
+    ---
+    **Full Changelog**: https://github.com/quinnypig/imagemage/compare/{{ .PreviousTag }}...{{ .Tag }}

@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"nanobanana/pkg/filehandler"
-	"nanobanana/pkg/gemini"
+	"imagemage/pkg/filehandler"
+	"imagemage/pkg/gemini"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -23,9 +23,9 @@ var iconCmd = &cobra.Command{
 	Long: `Generate icons in multiple sizes for apps, websites, and UI elements.
 
 Examples:
-  nanobanana icon "coffee cup logo"
-  nanobanana icon "rocket ship" --sizes="64,128,256" --type="app-icon"
-  nanobanana icon "hamburger menu" --type="ui-element"`,
+  imagemage icon "coffee cup logo"
+  imagemage icon "rocket ship" --sizes="64,128,256" --type="app-icon"
+  imagemage icon "hamburger menu" --type="ui-element"`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runIcon,
 }

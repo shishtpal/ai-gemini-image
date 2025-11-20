@@ -11,11 +11,12 @@ import (
 )
 
 const (
-	ModelName = "gemini-2.5-flash-image"
-	BaseURL   = "https://generativelanguage.googleapis.com/v1beta/models"
+	ModelName       = "gemini-3-pro-image-preview"
+	ModelNameFrugal = "gemini-2.5-flash-image"
+	BaseURL         = "https://generativelanguage.googleapis.com/v1beta/models"
 )
 
-// Supported aspect ratios for Gemini 2.5 Flash Image
+// Supported aspect ratios for Gemini image models
 var SupportedAspectRatios = []string{
 	"1:1",   // Square
 	"16:9",  // Landscape
@@ -33,6 +34,8 @@ var SupportedAspectRatios = []string{
 type Client struct {
 	apiKey     string
 	httpClient *http.Client
+	model      string
+	baseURL    string
 }
 
 // GenerateRequest represents a request to generate content
@@ -49,6 +52,7 @@ type GenerationConfig struct {
 // ImageConfig represents image-specific configuration
 type ImageConfig struct {
 	AspectRatio string `json:"aspectRatio,omitempty"`
+	ImageSize   string `json:"imageSize,omitempty"`
 }
 
 // Content represents content in the request
@@ -87,8 +91,18 @@ type ErrorInfo struct {
 	Status  string `json:"status"`
 }
 
-// NewClient creates a new Gemini API client
+// NewClient creates a new Gemini API client with the default model
 func NewClient() (*Client, error) {
+	return NewClientWithModel(ModelName)
+}
+
+// NewFrugalClient creates a new Gemini API client with the frugal model
+func NewFrugalClient() (*Client, error) {
+	return NewClientWithModel(ModelNameFrugal)
+}
+
+// NewClientWithModel creates a new Gemini API client with a specific model
+func NewClientWithModel(model string) (*Client, error) {
 	apiKey := getAPIKey()
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key not found. Please set one of: NANOBANANA_GEMINI_API_KEY, NANOBANANA_GOOGLE_API_KEY, GEMINI_API_KEY, or GOOGLE_API_KEY")
@@ -97,6 +111,8 @@ func NewClient() (*Client, error) {
 	return &Client{
 		apiKey:     apiKey,
 		httpClient: &http.Client{},
+		model:      model,
+		baseURL:    BaseURL,
 	}, nil
 }
 
@@ -140,11 +156,30 @@ func (c *Client) GenerateContent(prompt string) (string, error) {
 
 // GenerateContentWithImage sends a request to generate or edit content with an optional image
 func (c *Client) GenerateContentWithImage(prompt string, imageBase64 string) (string, error) {
-	return c.GenerateContentWithOptions(prompt, imageBase64, "")
+	return c.GenerateContentWithImages(prompt, []string{imageBase64}, "")
+}
+
+// GenerateContentWithImages sends a request with multiple input images
+func (c *Client) GenerateContentWithImages(prompt string, imagesBase64 []string, aspectRatio string) (string, error) {
+	return c.GenerateContentWithFullOptions(prompt, imagesBase64, "", aspectRatio)
+}
+
+// GenerateContentWithResolution sends a request with resolution and aspect ratio
+func (c *Client) GenerateContentWithResolution(prompt string, resolution string, aspectRatio string) (string, error) {
+	return c.GenerateContentWithFullOptions(prompt, nil, resolution, aspectRatio)
 }
 
 // GenerateContentWithOptions sends a request to generate or edit content with full options
 func (c *Client) GenerateContentWithOptions(prompt string, imageBase64 string, aspectRatio string) (string, error) {
+	var images []string
+	if imageBase64 != "" {
+		images = []string{imageBase64}
+	}
+	return c.GenerateContentWithFullOptions(prompt, images, "", aspectRatio)
+}
+
+// GenerateContentWithFullOptions sends a request with all options including multiple images
+func (c *Client) GenerateContentWithFullOptions(prompt string, imagesBase64 []string, resolution string, aspectRatio string) (string, error) {
 	// Validate aspect ratio
 	if err := ValidateAspectRatio(aspectRatio); err != nil {
 		return "", err
@@ -153,14 +188,16 @@ func (c *Client) GenerateContentWithOptions(prompt string, imageBase64 string, a
 		{Text: prompt},
 	}
 
-	// Add image if provided (for editing)
-	if imageBase64 != "" {
-		parts = append(parts, Part{
-			InlineData: &InlineData{
-				MimeType: "image/png",
-				Data:     imageBase64,
-			},
-		})
+	// Add images if provided (for editing/composition)
+	for _, imageBase64 := range imagesBase64 {
+		if imageBase64 != "" {
+			parts = append(parts, Part{
+				InlineData: &InlineData{
+					MimeType: "image/png",
+					Data:     imageBase64,
+				},
+			})
+		}
 	}
 
 	reqBody := GenerateRequest{
@@ -172,13 +209,17 @@ func (c *Client) GenerateContentWithOptions(prompt string, imageBase64 string, a
 		},
 	}
 
-	// Add generation config if aspect ratio is specified
-	if aspectRatio != "" {
-		reqBody.GenerationConfig = &GenerationConfig{
-			ImageConfig: &ImageConfig{
-				AspectRatio: aspectRatio,
-			},
-		}
+	// Always add generation config with default resolution of 4K
+	imageSize := resolution
+	if imageSize == "" {
+		imageSize = "4K"
+	}
+
+	reqBody.GenerationConfig = &GenerationConfig{
+		ImageConfig: &ImageConfig{
+			AspectRatio: aspectRatio,
+			ImageSize:   imageSize,
+		},
 	}
 
 	jsonData, err := json.Marshal(reqBody)
@@ -186,7 +227,17 @@ func (c *Client) GenerateContentWithOptions(prompt string, imageBase64 string, a
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/%s:generateContent?key=%s", BaseURL, ModelName, c.apiKey)
+	// Use client's model and baseURL, falling back to defaults if not set
+	model := c.model
+	if model == "" {
+		model = ModelName
+	}
+	baseURL := c.baseURL
+	if baseURL == "" {
+		baseURL = BaseURL
+	}
+
+	url := fmt.Sprintf("%s/%s:generateContent?key=%s", baseURL, model, c.apiKey)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)

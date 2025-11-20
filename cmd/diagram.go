@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"nanobanana/pkg/filehandler"
-	"nanobanana/pkg/gemini"
+	"imagemage/pkg/filehandler"
+	"imagemage/pkg/gemini"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -20,9 +20,9 @@ var diagramCmd = &cobra.Command{
 	Long: `Create technical diagrams, flowcharts, architecture diagrams, and visualizations.
 
 Examples:
-  nanobanana diagram "CI/CD pipeline with testing stages"
-  nanobanana diagram "microservices architecture" --type="architecture"
-  nanobanana diagram "user authentication flow" --type="flowchart"`,
+  imagemage diagram "CI/CD pipeline with testing stages"
+  imagemage diagram "microservices architecture" --type="architecture"
+  imagemage diagram "user authentication flow" --type="flowchart"`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runDiagram,
 }

@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"nanobanana/pkg/filehandler"
-	"nanobanana/pkg/gemini"
+	"imagemage/pkg/filehandler"
+	"imagemage/pkg/gemini"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -21,9 +21,9 @@ var storyCmd = &cobra.Command{
 	Long: `Create a sequence of images that tell a story or show progression.
 
 Examples:
-  nanobanana story "a seed growing into a tree" --frames=4
-  nanobanana story "day to night transition in a city" --frames=6 --style="cinematic"
-  nanobanana story "character transformation" --frames=3`,
+  imagemage story "a seed growing into a tree" --frames=4
+  imagemage story "day to night transition in a city" --frames=6 --style="cinematic"
+  imagemage story "character transformation" --frames=3`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runStory,
 }

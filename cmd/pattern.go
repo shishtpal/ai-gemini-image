@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"nanobanana/pkg/filehandler"
-	"nanobanana/pkg/gemini"
+	"imagemage/pkg/filehandler"
+	"imagemage/pkg/gemini"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -21,9 +21,9 @@ var patternCmd = &cobra.Command{
 	Long: `Generate seamless patterns and textures for backgrounds, designs, and textures.
 
 Examples:
-  nanobanana pattern "geometric triangles"
-  nanobanana pattern "floral" --type="seamless" --style="watercolor"
-  nanobanana pattern "hexagons" --style="minimal, modern"`,
+  imagemage pattern "geometric triangles"
+  imagemage pattern "floral" --type="seamless" --style="watercolor"
+  imagemage pattern "hexagons" --style="minimal, modern"`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runPattern,
 }

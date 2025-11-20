@@ -7,11 +7,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const Version = "0.1.0"
+
 var rootCmd = &cobra.Command{
-	Use:   "nanobanana",
-	Short: "A CLI tool for generating and manipulating images using Google's Gemini 2.5 Flash Image model",
-	Long: `Nanobanana is a professional CLI tool for creative image generation using Google's Gemini API.
-It provides commands for text-to-image creation, image editing, photo restoration, icon generation,
+	Use:     "imagemage",
+	Version: Version,
+	Short:   "A CLI tool for generating and manipulating images using Google's Gemini image models",
+	Long: `Imagemage is a focused CLI tool for image generation using Google's Gemini API.
+
+Supports multiple Gemini models:
+  • Gemini 3 Pro Image (default) - High-quality 4K generation
+  • Gemini 2.5 Flash Image (--frugal) - Faster, cheaper generation
+
+Features include text-to-image creation, image editing, photo restoration, icon generation,
 pattern creation, visual narratives, and technical diagrams.`,
 }
 
@@ -24,5 +32,5 @@ func Execute() {
 }
 
 func init() {
-	// Add global flags here if needed
+	// Cobra automatically adds --version flag when Version is set
 }

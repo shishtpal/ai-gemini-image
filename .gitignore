@@ -32,3 +32,4 @@ Thumbs.db
 *.jpeg
 !examples/*.png
 !examples/*.jpg
+.claude/*

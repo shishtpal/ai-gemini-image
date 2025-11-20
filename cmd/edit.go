@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"nanobanana/pkg/filehandler"
-	"nanobanana/pkg/gemini"
+	"imagemage/pkg/filehandler"
+	"imagemage/pkg/gemini"
+	"imagemage/pkg/metadata"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -11,18 +13,34 @@ import (
 )
 
 var (
-	editOutput string
+	editOutput      string
+	editInputs      []string
+	editAspectRatio string
+	editResolution  string
+	editFrugal      bool
+	editForce       bool
+	editStorePrompt bool
 )
 
 var editCmd = &cobra.Command{
-	Use:   "edit [image-path] [instruction]",
-	Short: "Edit an existing image with natural language instructions",
-	Long: `Modify an existing image using natural language instructions.
+	Use:   "edit [base-image] [instruction]",
+	Short: "Edit an image or compose multiple images",
+	Long: `Edit an existing image or compose multiple images using natural language instructions.
+
+Supports multi-image composition: provide a base image and additional images to blend them together.
+Works best with up to 3 input images total (base + additional).
 
 Examples:
-  nanobanana edit photo.png "make it black and white"
-  nanobanana edit landscape.png "add a rainbow in the sky"
-  nanobanana edit portrait.png "change background to beach" --output=./edited`,
+  # Edit a single image
+  imagemage edit photo.png "make it sunset lighting"
+  imagemage edit landscape.png "add a rainbow in the sky"
+
+  # Compose multiple images
+  imagemage edit background.png "add this person on the left" -i person.png
+  imagemage edit scene.png "put these people here" -i person1.png -i person2.png
+
+  # Complex composition
+  imagemage edit office.png "add this person and this laptop" -i person.png -i laptop.png`,
 	Args: cobra.ExactArgs(2),
 	RunE: runEdit,
 }
@@ -30,52 +48,153 @@ Examples:
 func init() {
 	rootCmd.AddCommand(editCmd)
 
-	editCmd.Flags().StringVarP(&editOutput, "output", "o", "", "Output path for edited image (default: input_edited.png)")
+	editCmd.Flags().StringVarP(&editOutput, "output", "o", "", "Output path for edited image (default: base-image-edited.png)")
+	editCmd.Flags().StringArrayVarP(&editInputs, "input", "i", []string{}, "Additional input images for composition (can be used multiple times)")
+	editCmd.Flags().StringVarP(&editAspectRatio, "aspect-ratio", "a", "", "Aspect ratio for output")
+	editCmd.Flags().StringVarP(&editResolution, "resolution", "r", "", "Image resolution (1K, 2K, 4K). Defaults to 4K")
+	editCmd.Flags().BoolVarP(&editFrugal, "frugal", "f", false, "Use the cheaper gemini-2.5-flash-image model")
+	editCmd.Flags().BoolVar(&editForce, "force", false, "Overwrite output file if it exists")
+	editCmd.Flags().BoolVar(&editStorePrompt, "store-prompt", false, "Store instruction in PNG metadata")
 }
 
 func runEdit(cmd *cobra.Command, args []string) error {
-	imagePath := args[0]
+	baseImagePath := args[0]
 	instruction := args[1]
 
-	fmt.Printf("Loading image: %s\n", imagePath)
-
-	// Load image as base64
-	imageBase64, err := filehandler.LoadImageAsBase64(imagePath)
-	if err != nil {
-		return fmt.Errorf("failed to load image: %w", err)
+	// Check if base image exists
+	if _, err := os.Stat(baseImagePath); os.IsNotExist(err) {
+		return fmt.Errorf("base image not found: %s", baseImagePath)
 	}
 
-	// Create Gemini client
-	client, err := gemini.NewClient()
-	if err != nil {
-		return fmt.Errorf("failed to create Gemini client: %w", err)
+	// Check additional input images
+	for _, inputPath := range editInputs {
+		if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+			return fmt.Errorf("input image not found: %s", inputPath)
+		}
 	}
 
-	fmt.Printf("Editing image with instruction: %s\n", instruction)
-
-	// Generate edited image
-	editedImageData, err := client.GenerateContentWithImage(instruction, imageBase64)
-	if err != nil {
-		return fmt.Errorf("failed to edit image: %w", err)
+	// Total images check (base + additional)
+	totalImages := 1 + len(editInputs)
+	if totalImages > 14 {
+		return fmt.Errorf("too many input images (%d). Maximum is 14 (base + additional)", totalImages)
+	}
+	if totalImages > 3 {
+		fmt.Printf("⚠️  Using %d images. API works best with 3 or fewer images.\n", totalImages)
 	}
 
 	// Determine output path
 	outputPath := editOutput
 	if outputPath == "" {
-		// Generate default output path
-		ext := filepath.Ext(imagePath)
-		base := strings.TrimSuffix(imagePath, ext)
-		outputPath = base + "_edited" + ext
+		ext := filepath.Ext(baseImagePath)
+		baseName := strings.TrimSuffix(filepath.Base(baseImagePath), ext)
+		outputPath = filepath.Join(filepath.Dir(baseImagePath), baseName+"-edited"+ext)
 	}
 
-	outputPath = filehandler.EnsureUniqueFilename(outputPath)
+	// Check if output exists
+	if !editForce {
+		if _, err := os.Stat(outputPath); err == nil {
+			return fmt.Errorf("output file already exists: %s (use --force to overwrite)", outputPath)
+		}
+	}
+
+	// Validate aspect ratio if provided
+	if editAspectRatio != "" {
+		if err := gemini.ValidateAspectRatio(editAspectRatio); err != nil {
+			return err
+		}
+	}
+
+	// Validate frugal mode limitations (Gemini 2.5 Flash only supports 1K resolution)
+	if editFrugal {
+		if editResolution != "" && editResolution != "1K" {
+			return fmt.Errorf("--frugal mode only supports 1K resolution, but %s was requested. Gemini 2.5 Flash only supports 1K (1024px) resolution. Remove --frugal to use higher resolutions", editResolution)
+		}
+		if totalImages > 1 {
+			fmt.Printf("⚠️  Warning: Multi-image composition with --frugal mode may have limitations. Gemini 2.5 Flash multi-image capabilities are not well documented. For best results with %d images, consider using Gemini 3 Pro (remove --frugal flag).\n\n", totalImages)
+		}
+	}
+
+	fmt.Printf("Loading base image: %s\n", filepath.Base(baseImagePath))
+
+	// Load and encode base image
+	baseImageBase64, err := filehandler.LoadImageAsBase64(baseImagePath)
+	if err != nil {
+		return fmt.Errorf("failed to load base image: %w", err)
+	}
+
+	// Load and encode additional images
+	var allImagesBase64 []string
+	allImagesBase64 = append(allImagesBase64, baseImageBase64)
+
+	for i, inputPath := range editInputs {
+		fmt.Printf("Loading input %d: %s\n", i+1, filepath.Base(inputPath))
+		inputBase64, err := filehandler.LoadImageAsBase64(inputPath)
+		if err != nil {
+			return fmt.Errorf("failed to load input image %s: %w", inputPath, err)
+		}
+		allImagesBase64 = append(allImagesBase64, inputBase64)
+	}
+
+	// Create Gemini client
+	var client *gemini.Client
+	if editFrugal {
+		client, err = gemini.NewFrugalClient()
+		if err != nil {
+			return fmt.Errorf("failed to create Gemini client: %w", err)
+		}
+	} else {
+		client, err = gemini.NewClient()
+		if err != nil {
+			return fmt.Errorf("failed to create Gemini client: %w", err)
+		}
+	}
+
+	// Display edit info
+	fmt.Printf("\nEditing with %d image(s)\n", totalImages)
+	fmt.Printf("Instruction: %s\n", instruction)
+	if editAspectRatio != "" {
+		fmt.Printf("Aspect Ratio: %s\n", editAspectRatio)
+	}
+	resolution := editResolution
+	if resolution == "" {
+		resolution = "4K"
+	}
+	fmt.Printf("Resolution: %s\n", resolution)
+	if editFrugal {
+		fmt.Printf("Model: %s (frugal)\n", gemini.ModelNameFrugal)
+	} else {
+		fmt.Printf("Model: %s\n", gemini.ModelName)
+	}
+	fmt.Println("\nGenerating edited image...")
+
+	// Generate with all images
+	var editedImageData string
+	if editResolution != "" || editAspectRatio != "" {
+		editedImageData, err = client.GenerateContentWithFullOptions(instruction, allImagesBase64, editResolution, editAspectRatio)
+	} else {
+		editedImageData, err = client.GenerateContentWithImages(instruction, allImagesBase64, "")
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to edit image: %w", err)
+	}
 
 	// Save edited image
 	if err := filehandler.SaveImage(editedImageData, outputPath); err != nil {
 		return fmt.Errorf("failed to save edited image: %w", err)
 	}
 
-	fmt.Printf("✓ Edited image saved to: %s\n", outputPath)
+	// Store instruction in metadata if requested
+	if editStorePrompt {
+		if err := metadata.AddPromptToPNG(outputPath, instruction); err != nil {
+			fmt.Printf("⚠️  Warning: failed to store prompt in metadata: %v\n", err)
+		}
+	}
+
+	fmt.Printf("✓ Saved to: %s\n", outputPath)
+	if editStorePrompt {
+		fmt.Printf("  (instruction stored in metadata)\n")
+	}
 
 	return nil
 }

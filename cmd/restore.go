@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"nanobanana/pkg/filehandler"
-	"nanobanana/pkg/gemini"
+	"imagemage/pkg/filehandler"
+	"imagemage/pkg/gemini"
 	"path/filepath"
 	"strings"
 
@@ -20,8 +20,8 @@ var restoreCmd = &cobra.Command{
 	Long: `Restore old photos, enhance quality, remove noise, and improve overall image quality.
 
 Examples:
-  nanobanana restore old_photo.png
-  nanobanana restore damaged.jpg --output=restored.png`,
+  imagemage restore old_photo.png
+  imagemage restore damaged.jpg --output=restored.png`,
 	Args: cobra.ExactArgs(1),
 	RunE: runRestore,
 }

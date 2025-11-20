@@ -1,6 +1,6 @@
 package main
 
-import "nanobanana/cmd"
+import "imagemage/cmd"
 
 func main() {
 	cmd.Execute()
