@@ -7,11 +7,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const Version = "0.1.0"
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
+// SetVersionInfo sets the version info from main package
+func SetVersionInfo(v, c, d string) {
+	version = v
+	commit = c
+	date = d
+	rootCmd.Version = version
+}
 
 var rootCmd = &cobra.Command{
 	Use:     "imagemage",
-	Version: Version,
+	Version: version,
 	Short:   "A CLI tool for generating and manipulating images using Google's Gemini image models",
 	Long: `Imagemage is a focused CLI tool for image generation using Google's Gemini API.
 
