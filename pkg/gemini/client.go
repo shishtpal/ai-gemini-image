@@ -209,10 +209,15 @@ func (c *Client) GenerateContentWithFullOptions(prompt string, imagesBase64 []st
 		},
 	}
 
-	// Always add generation config with default resolution of 4K
+	// Always add generation config with model-appropriate default resolution
 	imageSize := resolution
 	if imageSize == "" {
-		imageSize = "4K"
+		// Frugal model (2.5 Flash) only supports 1K, Pro model supports up to 4K
+		if c.model == ModelNameFrugal {
+			imageSize = "1K"
+		} else {
+			imageSize = "4K"
+		}
 	}
 
 	reqBody.GenerationConfig = &GenerationConfig{

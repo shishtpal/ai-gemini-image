@@ -153,3 +153,90 @@ func TestClient_UsesImageResolution(t *testing.T) {
 		})
 	}
 }
+
+func TestFrugalClient_DefaultsTo1K(t *testing.T) {
+	tests := []struct {
+		name               string
+		model              string
+		resolution         string
+		expectedResolution string
+	}{
+		{
+			name:               "frugal model defaults to 1K when no resolution specified",
+			model:              ModelNameFrugal,
+			resolution:         "",
+			expectedResolution: "1K",
+		},
+		{
+			name:               "pro model defaults to 4K when no resolution specified",
+			model:              ModelName,
+			resolution:         "",
+			expectedResolution: "4K",
+		},
+		{
+			name:               "frugal model respects explicit 1K",
+			model:              ModelNameFrugal,
+			resolution:         "1K",
+			expectedResolution: "1K",
+		},
+		{
+			name:               "pro model respects explicit 4K",
+			model:              ModelName,
+			resolution:         "4K",
+			expectedResolution: "4K",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test server that captures the request body
+			var receivedBody []byte
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedBody, _ = io.ReadAll(r.Body)
+				// Return a minimal valid response
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{
+					"candidates": [{
+						"content": {
+							"parts": [{
+								"inlineData": {
+									"mimeType": "image/png",
+									"data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+								}
+							}]
+						}
+					}]
+				}`))
+			}))
+			defer server.Close()
+
+			// Create client with specified model
+			client := &Client{
+				apiKey:     "test-key",
+				httpClient: &http.Client{},
+				model:      tt.model,
+				baseURL:    server.URL,
+			}
+
+			// Make a request with or without resolution
+			_, err := client.GenerateContentWithResolution("test prompt", tt.resolution, "")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Parse the request body to verify resolution was set correctly
+			var req GenerateRequest
+			if err := json.Unmarshal(receivedBody, &req); err != nil {
+				t.Fatalf("failed to unmarshal request body: %v", err)
+			}
+
+			// Verify resolution in the request
+			if req.GenerationConfig == nil || req.GenerationConfig.ImageConfig == nil {
+				t.Fatal("expected ImageConfig to be set")
+			}
+			if req.GenerationConfig.ImageConfig.ImageSize != tt.expectedResolution {
+				t.Errorf("expected resolution %q, got %q", tt.expectedResolution, req.GenerationConfig.ImageConfig.ImageSize)
+			}
+		})
+	}
+}
