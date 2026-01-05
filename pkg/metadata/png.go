@@ -79,7 +79,7 @@ func createTextChunk(keyword, text string) []byte {
 	buf := new(bytes.Buffer)
 
 	// Length (4 bytes, big-endian)
-	binary.Write(buf, binary.BigEndian, uint32(len(chunkData)))
+	_ = binary.Write(buf, binary.BigEndian, uint32(len(chunkData)))
 
 	// Type (4 bytes: "tEXt")
 	buf.WriteString("tEXt")
@@ -90,7 +90,7 @@ func createTextChunk(keyword, text string) []byte {
 	// CRC (4 bytes) - calculated over type + data
 	crcData := append([]byte("tEXt"), chunkData...)
 	crc := crc32.ChecksumIEEE(crcData)
-	binary.Write(buf, binary.BigEndian, crc)
+	_ = binary.Write(buf, binary.BigEndian, crc)
 
 	return buf.Bytes()
 }
@@ -101,7 +101,7 @@ func ReadPromptFromPNG(filepath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to open PNG file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Verify PNG signature
 	sig := make([]byte, 8)
@@ -170,7 +170,9 @@ func convertJPEGToPNG(filepath string) error {
 	}
 
 	img, err := jpeg.Decode(file)
-	file.Close()
+	if cerr := file.Close(); cerr != nil {
+		return cerr
+	}
 	if err != nil {
 		return fmt.Errorf("failed to decode JPEG: %w", err)
 	}
@@ -180,11 +182,11 @@ func convertJPEGToPNG(filepath string) error {
 	if err != nil {
 		return err
 	}
-	defer outFile.Close()
 
 	if err := png.Encode(outFile, img); err != nil {
+		_ = outFile.Close()
 		return fmt.Errorf("failed to encode PNG: %w", err)
 	}
 
-	return nil
+	return outFile.Close()
 }

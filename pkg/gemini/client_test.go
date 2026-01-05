@@ -34,7 +34,7 @@ func TestClient_UsesSpecifiedModel(t *testing.T) {
 				requestedURL = r.URL.Path
 				// Return a minimal valid response
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(`{
+				_, _ = w.Write([]byte(`{
 					"candidates": [{
 						"content": {
 							"parts": [{
@@ -108,7 +108,7 @@ func TestClient_UsesImageResolution(t *testing.T) {
 				receivedBody, _ = io.ReadAll(r.Body)
 				// Return a minimal valid response
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(`{
+				_, _ = w.Write([]byte(`{
 					"candidates": [{
 						"content": {
 							"parts": [{
@@ -163,10 +163,10 @@ func TestFrugalClient_OmitsImageSize(t *testing.T) {
 		expectedResolution string
 	}{
 		{
-			name:            "frugal model omits imageSize (fixed 1024px output)",
-			model:           ModelNameFrugal,
-			resolution:      "",
-			expectImageSize: false,
+			name:               "frugal model omits imageSize (fixed 1024px output)",
+			model:              ModelNameFrugal,
+			resolution:         "",
+			expectImageSize:    false,
 			expectedResolution: "",
 		},
 		{
@@ -200,7 +200,7 @@ func TestFrugalClient_OmitsImageSize(t *testing.T) {
 				receivedBody, _ = io.ReadAll(r.Body)
 				// Return a minimal valid response
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(`{
+				_, _ = w.Write([]byte(`{
 					"candidates": [{
 						"content": {
 							"parts": [{

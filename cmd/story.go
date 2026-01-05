@@ -63,11 +63,12 @@ func runStory(cmd *cobra.Command, args []string) error {
 	for i := 1; i <= storyFrames; i++ {
 		// Create frame-specific prompt
 		prompt := fmt.Sprintf("Frame %d of %d in a visual narrative: %s", i, storyFrames, narrative)
-		if i == 1 {
+		switch i {
+		case 1:
 			prompt += " (beginning/opening scene)"
-		} else if i == storyFrames {
+		case storyFrames:
 			prompt += " (ending/final scene)"
-		} else {
+		default:
 			prompt += fmt.Sprintf(" (progression, scene %d)", i)
 		}
 

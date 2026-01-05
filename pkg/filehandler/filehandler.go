@@ -5,7 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
-	_ "image/jpeg" // Register JPEG decoder
+	_ "image/gif"
+	_ "image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"strings"
 
 	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 )
 
 // SaveImage saves base64 encoded image data to a file
@@ -148,12 +150,32 @@ func ResizeAndSaveImage(imageData string, size int, outputPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
-	defer f.Close()
 
 	// Encode as PNG
 	if err := png.Encode(f, dst); err != nil {
+		_ = f.Close()
 		return fmt.Errorf("failed to encode PNG: %w", err)
 	}
 
-	return nil
+	return f.Close()
+}
+
+// GetImageDimensions returns the width and height of an image file
+func GetImageDimensions(path string) (width, height int, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to open image: %w", err)
+	}
+	defer func() {
+		if cerr := file.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+
+	config, _, err := image.DecodeConfig(file)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to decode image config: %w", err)
+	}
+
+	return config.Width, config.Height, nil
 }

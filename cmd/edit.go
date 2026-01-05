@@ -50,7 +50,7 @@ func init() {
 
 	editCmd.Flags().StringVarP(&editOutput, "output", "o", "", "Output path for edited image (default: base-image-edited.png)")
 	editCmd.Flags().StringArrayVarP(&editInputs, "input", "i", []string{}, "Additional input images for composition (can be used multiple times)")
-	editCmd.Flags().StringVarP(&editAspectRatio, "aspect-ratio", "a", "", "Aspect ratio for output")
+	editCmd.Flags().StringVarP(&editAspectRatio, "aspect-ratio", "a", "", "Aspect ratio for output (auto-detected from input if not specified)")
 	editCmd.Flags().StringVarP(&editResolution, "resolution", "r", "", "Image resolution (1K, 2K, 4K). Defaults to 4K for Pro model, 1K for --frugal")
 	editCmd.Flags().BoolVarP(&editFrugal, "frugal", "f", false, "Use the cheaper gemini-2.5-flash-image model")
 	editCmd.Flags().BoolVar(&editForce, "force", false, "Overwrite output file if it exists")
@@ -94,6 +94,18 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	if !editForce {
 		if _, err := os.Stat(outputPath); err == nil {
 			return fmt.Errorf("output file already exists: %s (use --force to overwrite)", outputPath)
+		}
+	}
+
+	// Auto-detect aspect ratio from base image if not specified
+	detectedAspectRatio := ""
+	if editAspectRatio == "" {
+		width, height, err := filehandler.GetImageDimensions(baseImagePath)
+		if err != nil {
+			fmt.Printf("⚠️  Could not detect image dimensions: %v\n", err)
+		} else {
+			detectedAspectRatio = gemini.FindClosestAspectRatio(width, height)
+			editAspectRatio = detectedAspectRatio
 		}
 	}
 
@@ -153,7 +165,11 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\nEditing with %d image(s)\n", totalImages)
 	fmt.Printf("Instruction: %s\n", instruction)
 	if editAspectRatio != "" {
-		fmt.Printf("Aspect Ratio: %s\n", editAspectRatio)
+		if detectedAspectRatio != "" {
+			fmt.Printf("Aspect Ratio: %s (auto-detected from input)\n", editAspectRatio)
+		} else {
+			fmt.Printf("Aspect Ratio: %s\n", editAspectRatio)
+		}
 	}
 	// Display resolution info
 	if editFrugal {

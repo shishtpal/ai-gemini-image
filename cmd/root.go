@@ -7,17 +7,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-)
+var version = "dev"
 
 // SetVersionInfo sets the version info from main package
-func SetVersionInfo(v, c, d string) {
+func SetVersionInfo(v, _, _ string) {
 	version = v
-	commit = c
-	date = d
 	rootCmd.Version = version
 }
 

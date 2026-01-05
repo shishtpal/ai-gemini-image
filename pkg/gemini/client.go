@@ -150,6 +150,38 @@ func ValidateAspectRatio(aspectRatio string) error {
 	return fmt.Errorf("unsupported aspect ratio: %s. Supported: %v", aspectRatio, SupportedAspectRatios)
 }
 
+// FindClosestAspectRatio finds the closest supported aspect ratio for given dimensions
+func FindClosestAspectRatio(width, height int) string {
+	if width <= 0 || height <= 0 {
+		return "1:1" // fallback
+	}
+
+	inputRatio := float64(width) / float64(height)
+	bestMatch := "1:1"
+	smallestDiff := float64(1000)
+
+	for _, ar := range SupportedAspectRatios {
+		// Parse aspect ratio string (e.g., "16:9")
+		var w, h int
+		if _, err := fmt.Sscanf(ar, "%d:%d", &w, &h); err != nil || h == 0 {
+			continue
+		}
+
+		arRatio := float64(w) / float64(h)
+		diff := inputRatio - arRatio
+		if diff < 0 {
+			diff = -diff
+		}
+
+		if diff < smallestDiff {
+			smallestDiff = diff
+			bestMatch = ar
+		}
+	}
+
+	return bestMatch
+}
+
 // GenerateContent sends a request to generate content
 func (c *Client) GenerateContent(prompt string) (string, error) {
 	return c.GenerateContentWithOptions(prompt, "", "")
@@ -268,7 +300,7 @@ func (c *Client) GenerateContentWithFullOptions(prompt string, imagesBase64 []st
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
